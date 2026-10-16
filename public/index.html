@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duty Roster</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f5c4d'/%3E%3Cpath d='M8 10h16M8 16h16M8 22h10' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><b>Duty Roster</b><span id="subtitle">Staff schedule</span></div>
+    <div>
+      <button class="link" id="logout" hidden>Log out</button>
+      <a href="/admin" id="adminlink">Supervisor</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- LOGIN -->
+  <section class="card login" id="loginView">
+    <h1>Check your roster</h1>
+    <p>Choose your department and enter the password your supervisor gave you.</p>
+    <form id="loginForm" autocomplete="off">
+      <div id="outletField">
+        <label for="outlet">Outlet</label>
+        <select id="outlet"></select>
+      </div>
+      <label for="dept">Department</label>
+      <select id="dept"></select>
+      <label for="password">Department password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <div class="err" id="loginErr" role="alert"></div>
+      <button class="btn block" id="loginBtn" type="submit">View roster</button>
+    </form>
+  </section>
+
+  <!-- ROSTER -->
+  <section id="rosterView" hidden>
+    <div class="print-title" id="printTitle"></div>
+    <div class="toolbar">
+      <div class="weeknav">
+        <button class="btn secondary" id="prev" aria-label="Previous week">‹</button>
+        <div class="label" id="weekLabel" aria-live="polite"></div>
+        <button class="btn secondary" id="next" aria-label="Next week">›</button>
+      </div>
+      <button class="btn secondary" id="thisWeek">This week</button>
+      <div class="spacer"></div>
+      <div class="field">
+        <label for="me">I am</label>
+        <select id="me"></select>
+      </div>
+      <button class="btn secondary" id="print">Print</button>
+    </div>
+    <div class="meta-line"><b id="deptName"></b><span id="updated"></span></div>
+
+    <div class="myweek card" id="myweek" hidden>
+      <h2 id="myweekTitle">My week</h2>
+      <div class="days" id="myDays"></div>
+    </div>
+
+    <div id="tableArea"></div>
+  </section>
+</main>
+
+<script src="/common.js"></script>
+<script src="/staff.js"></script>
+</body>
+</html>

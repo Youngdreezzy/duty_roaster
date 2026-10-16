@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supervisor · Duty Roster</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f5c4d'/%3E%3Cpath d='M8 10h16M8 16h16M8 22h10' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><b>Duty Roster</b><span>Supervisor</span></div>
+    <div>
+      <button class="link" id="logout" hidden>Log out</button>
+      <a href="/" id="staffLink">Staff view</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- LOGIN -->
+  <section class="card login" id="loginView">
+    <h1>Supervisor login</h1>
+    <p>Enter the supervisor password to prepare and publish the roster.</p>
+    <form id="loginForm">
+      <label for="password">Supervisor password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <div class="err" id="loginErr" role="alert"></div>
+      <button class="btn block" id="loginBtn" type="submit">Log in</button>
+    </form>
+  </section>
+
+  <section id="appView" hidden>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabRoster" aria-selected="true">Roster</button>
+      <button class="tab" role="tab" id="tabSettings" aria-selected="false">Staff, posts &amp; passwords</button>
+    </div>
+
+    <!-- ROSTER EDITOR -->
+    <div id="rosterPanel">
+      <div class="print-title" id="printTitle"></div>
+      <div class="toolbar">
+        <div class="field" id="outletField">
+          <label for="outlet">Outlet</label>
+          <select id="outlet"></select>
+        </div>
+        <div class="field">
+          <label for="dept">Department</label>
+          <select id="dept"></select>
+        </div>
+        <div class="weeknav">
+          <button class="btn secondary" id="prev" aria-label="Previous week">‹</button>
+          <div class="label" id="weekLabel" aria-live="polite"></div>
+          <button class="btn secondary" id="next" aria-label="Next week">›</button>
+        </div>
+      </div>
+
+      <div class="meta-line">
+        <span class="pill none" id="statusPill">Not saved</span>
+        <span id="savedInfo"></span>
+        <span id="dirtyInfo" style="color:var(--warn);font-weight:600"></span>
+      </div>
+
+      <div id="gridArea"></div>
+
+      <div class="toolbar noprint" style="margin-top:16px">
+        <button class="btn secondary" id="copyLast">Copy last week</button>
+        <button class="btn secondary" id="clearAll">Clear all</button>
+        <button class="btn secondary" id="print">Print</button>
+        <div class="spacer"></div>
+        <button class="btn secondary" id="saveDraft">Save draft</button>
+        <button class="btn" id="publish">Publish to staff</button>
+      </div>
+      <p class="hint noprint">Staff only see a roster after you press <b>Publish</b>. After publishing you can still change cells and publish again.</p>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settingsPanel" hidden></div>
+  </section>
+</main>
+
+<script src="/common.js"></script>
+<script src="/admin.js"></script>
+</body>
+</html>
