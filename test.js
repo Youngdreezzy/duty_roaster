@@ -11,6 +11,7 @@ const call = async (action, { method = 'GET', body, query, token, ip } = {}) => 
 };
 (async () => {
   await new Promise((r) => setTimeout(r, 800));
+  let h = await call('health'); ok(h.status===200 && h.data.database==='memory' && h.data.ready===false, 'health reports set-up state without secrets'); ok(!JSON.stringify(h.data).includes('admin123'), 'health leaks no secrets');
   const meta = await call('meta');
   ok(meta.data.outlets[0].departments.length === 3, 'meta lists 3 departments');
   ok(!JSON.stringify(meta.data).includes('Feyikemi'), 'meta does not leak staff names');

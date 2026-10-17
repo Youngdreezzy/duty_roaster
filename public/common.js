@@ -63,7 +63,7 @@ async function api(action, { method = 'GET', body, query, token } = {}) {
   let data = {};
   try { data = await res.json(); } catch { /* not json */ }
   if (!res.ok) {
-    const e = new Error(data.error || 'Request failed (' + res.status + ')');
+    const e = new Error(data.error || (res.status >= 500 ? 'Server error (' + res.status + '). Open /api/health on your site to see what is missing.' : 'Request failed (' + res.status + ')'));
     e.status = res.status;
     throw e;
   }
