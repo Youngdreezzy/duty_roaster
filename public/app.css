@@ -186,3 +186,6 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
   .print-title { display: block !important; }
 }
 .print-title { display: none; font: 600 20px var(--serif); margin: 0 0 10px; }
+
+footer{text-align:center;color:var(--muted);font-size:.9rem;margin-top:28px}
+footer a{color:var(--accent);font-weight:600}
