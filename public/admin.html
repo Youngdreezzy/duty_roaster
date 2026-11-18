@@ -11,7 +11,7 @@
 <body>
 <header class="topbar">
   <div class="wrap">
-    <div class="brand"><b>Duty Roster</b><span>Supervisor</span></div>
+    <div class="brand"><b>Duty Roster</b><span id="roleLabel">Supervisor</span></div>
     <div>
       <button class="link" id="logout" hidden>Log out</button>
       <a href="/" id="staffLink">Staff view</a>
@@ -23,9 +23,11 @@
   <!-- LOGIN -->
   <section class="card login" id="loginView">
     <h1>Supervisor login</h1>
-    <p>Enter the supervisor password to prepare and publish the roster.</p>
+    <p>Choose where you supervise and enter your password.</p>
     <form id="loginForm">
-      <label for="password">Supervisor password</label>
+      <label for="who">Sign in as</label>
+      <select id="who"></select>
+      <label for="password">Password</label>
       <input type="password" id="password" autocomplete="current-password" required>
       <div class="err" id="loginErr" role="alert"></div>
       <button class="btn block" id="loginBtn" type="submit">Log in</button>
@@ -62,6 +64,7 @@
         <span id="savedInfo"></span>
         <span id="dirtyInfo" style="color:var(--warn);font-weight:600"></span>
       </div>
+      <p class="hint" id="deptNote" style="margin:-4px 0 12px"></p>
 
       <div id="gridArea"></div>
 
@@ -74,7 +77,6 @@
         <button class="btn" id="publish">Publish to staff</button>
       </div>
       <p class="hint noprint">Staff only see a roster after you press <b>Publish</b>. After publishing you can still change cells and publish again.</p>
-      <footer>app by <a href="https://x.com/Youngdreezzy">IT 👾💥</a></footer>
     </div>
 
     <!-- SETTINGS -->

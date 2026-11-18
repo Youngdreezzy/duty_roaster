@@ -1,34 +1,58 @@
-/* Supervisor page: fill in the weekly grid, publish, and manage staff / posts / passwords */
+/* Supervisor page: fill in the weekly grid, publish, and manage staff / posts / passwords.
+   Two kinds of login: the super admin (all outlets) and an outlet supervisor (one outlet). */
 const TOKEN_KEY = 'roster.admin';
+const WHO_KEY = 'roster.who';
+const SAMPLE_WEEKS = { vibes: '2026-10-12', hotel: '2026-11-16' };
 const A = {
-  token: null, cfg: null,
+  token: null, role: null, cfg: null,
   outlet: '', dept: '',
   week: mondayOf(todayStr()),
-  rows: {},        // staffId -> 7 values
+  rows: {},        // staffId -> 7 values ("M", "M@PB", "")
   status: null,    // null | 'draft' | 'published'
   savedAt: null,
   dirty: false,
 };
 
+const isSuper = () => A.role === 'admin';
 const curOutlet = () => A.cfg.outlets.find((o) => o.id === A.outlet);
 const curDept = () => curOutlet().departments.find((d) => d.id === A.dept);
+const coversOf = (dept) => dept.covers || [];
 
 /* ---------------- login ---------------- */
 function showLogin(msg) {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
   $('#logout').hidden = true;
+  $('#roleLabel').textContent = 'Supervisor';
+  $('#staffLink').href = '/';
   $('#loginErr').textContent = msg || '';
+  if (!$('#who').options.length) fillWho();
+}
+
+async function fillWho() {
+  try {
+    const meta = await api('meta');
+    const saved = store.get(WHO_KEY);
+    $('#who').innerHTML = meta.outlets.map((o) => `<option value="o:${esc(o.id)}">${esc(o.name)} supervisor</option>`).join('') +
+      '<option value="admin">Super admin</option>';
+    if (saved && $$('#who option').some((o) => o.value === saved)) $('#who').value = saved;
+  } catch {
+    $('#loginErr').textContent = 'Could not load. Check your internet connection and refresh.';
+  }
 }
 
 $('#loginForm').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('#loginBtn').disabled = true;
   $('#loginErr').textContent = '';
+  const who = $('#who').value;
+  const body = who === 'admin' ? { role: 'admin', password: $('#password').value }
+    : { role: 'supervisor', outlet: who.slice(2), password: $('#password').value };
   try {
-    const r = await api('login', { method: 'POST', body: { role: 'admin', password: $('#password').value } });
+    const r = await api('login', { method: 'POST', body });
     A.token = r.token;
     store.set(TOKEN_KEY, A.token);
+    store.set(WHO_KEY, who);
     $('#password').value = '';
     await boot();
   } catch (e) {
@@ -48,8 +72,9 @@ $('#logout').addEventListener('click', () => {
 
 async function boot() {
   A.cfg = await api('config', { token: A.token });
-  if (!curOutletExists()) A.outlet = A.cfg.outlets[0].id;
-  if (!A.dept || !curOutlet().departments.some((d) => d.id === A.dept)) A.dept = curOutlet().departments[0].id;
+  A.role = A.cfg.role;
+  if (!A.cfg.outlets.some((o) => o.id === A.outlet)) A.outlet = A.cfg.outlets[0].id;
+  if (!curOutlet().departments.some((d) => d.id === A.dept)) A.dept = (curOutlet().departments[0] || {}).id || '';
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   $('#logout').hidden = false;
@@ -57,12 +82,13 @@ async function boot() {
   await loadRoster();
   renderSettings();
 }
-const curOutletExists = () => A.cfg.outlets.some((o) => o.id === A.outlet);
 
 function fillPickers() {
   $('#outlet').innerHTML = A.cfg.outlets.map((o) => `<option value="${esc(o.id)}"${o.id === A.outlet ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
   $('#outletField').hidden = A.cfg.outlets.length < 2;
   $('#dept').innerHTML = curOutlet().departments.map((d) => `<option value="${esc(d.id)}"${d.id === A.dept ? ' selected' : ''}>${esc(d.name)}</option>`).join('');
+  $('#roleLabel').textContent = isSuper() ? 'Super admin' : `${curOutlet().name} supervisor`;
+  $('#staffLink').href = '/?outlet=' + encodeURIComponent(A.outlet);
 }
 
 /* ---------------- loading a week ---------------- */
@@ -78,6 +104,7 @@ async function fetchRoster(outlet, dept, week) {
 }
 
 async function loadRoster() {
+  if (!A.dept) { $('#gridArea').innerHTML = '<div class="card empty-state"><b>No departments yet</b></div>'; return; }
   const dept = curDept();
   let roster;
   try {
@@ -99,10 +126,16 @@ function confirmLeave() {
 }
 
 /* ---------------- grid ---------------- */
-function cellSelect(staffId, i, dept) {
-  const v = A.rows[staffId][i];
-  const opts = ['<option value=""></option>'].concat(dept.posts.map((p) => `<option value="${esc(p)}"${p === v ? ' selected' : ''}>${esc(p)}</option>`));
-  return `<select class="cell" data-s="${esc(staffId)}" data-d="${i}" aria-label="${DAYS[i]}">${opts.join('')}</select>`;
+function cellHtml(staffId, i, dept) {
+  const { base, cover } = splitVal(A.rows[staffId][i]);
+  const opts = ['<option value=""></option>'].concat(dept.posts.map((p) => `<option value="${esc(p)}"${p === base ? ' selected' : ''}>${esc(p)}</option>`));
+  let html = `<select class="cell" data-s="${esc(staffId)}" data-d="${i}" aria-label="${DAYS[i]}">${opts.join('')}</select>`;
+  const covers = coversOf(dept);
+  if (covers.length) {
+    const co = ['<option value="">cover…</option>'].concat(covers.map((c) => `<option value="${esc(c.code)}"${c.code === cover ? ' selected' : ''}>${esc(c.code)}</option>`));
+    html += `<select class="cover" data-s="${esc(staffId)}" data-d="${i}" aria-label="Covering at, ${DAYS[i]}" title="Covering at another place (optional)">${co.join('')}</select>`;
+  }
+  return html;
 }
 
 function renderGrid() {
@@ -110,6 +143,7 @@ function renderGrid() {
   const today = todayStr();
   $('#weekLabel').textContent = weekLabel(A.week);
   $('#printTitle').textContent = `${curOutlet().name} · ${dept.name} · ${weekLabel(A.week)}`;
+  $('#deptNote').textContent = dept.note || '';
 
   if (!dept.staff.length) {
     $('#gridArea').innerHTML = '<div class="card empty-state"><b>No staff in this department yet</b>Add names in the "Staff, posts &amp; passwords" tab.</div>';
@@ -122,15 +156,17 @@ function renderGrid() {
   }).join('');
   const fillOpts = '<option value="">Fill row…</option>' + dept.posts.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
   const body = dept.staff.map((s) => {
-    const cells = DAYS.map((_, i) => `<td class="${addDays(A.week, i) === today ? 'today' : ''}">${cellSelect(s.id, i, dept)}</td>`).join('');
+    const cells = DAYS.map((_, i) => `<td class="${addDays(A.week, i) === today ? 'today' : ''}">${cellHtml(s.id, i, dept)}</td>`).join('');
     return `<tr data-row="${esc(s.id)}"><td class="name">${esc(s.name)}<span class="warn-flag" hidden>⚠ no off day</span><select class="fill" data-fill="${esc(s.id)}" aria-label="Fill whole row for ${esc(s.name)}">${fillOpts}</select></td>${cells}</tr>`;
   }).join('');
   const foot = dept.posts.map((p) =>
     `<tr data-post="${esc(p)}"><th class="name">${esc(p)}</th>${DAYS.map((_, i) => `<td data-c="${i}">0</td>`).join('')}</tr>`).join('');
+  const coverRow = coversOf(dept).length
+    ? `<tr class="cover-row" data-covering><th class="name">Covering elsewhere</th>${DAYS.map((_, i) => `<td data-c="${i}">0</td>`).join('')}</tr>` : '';
   $('#gridArea').innerHTML = `<div class="table-wrap"><table class="roster">
     <thead><tr><th class="name">Name</th>${head}</tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr class="sect"><th colspan="8">Who is on each post</th></tr>${foot}</tfoot></table></div>`;
+    <tfoot><tr class="sect"><th colspan="8">Who is on each post</th></tr>${foot}${coverRow}</tfoot></table></div>`;
   updateDerived();
 }
 
@@ -141,27 +177,44 @@ function styleSelect(sel, dept) {
   if (v && !isOff(v)) sel.style.setProperty('--h', hueFor(v, dept.posts)); else sel.style.removeProperty('--h');
 }
 
+// Repaints every cell from A.rows, then recalculates counts and warnings.
 function updateDerived() {
   const dept = curDept();
-  $$('select.cell').forEach((s) => styleSelect(s, dept));
+  if (!dept) return;
 
-  // coverage counts
+  $$('select.cell').forEach((s) => {
+    s.value = splitVal(A.rows[s.dataset.s][Number(s.dataset.d)]).base;
+    styleSelect(s, dept);
+  });
+  $$('select.cover').forEach((s) => {
+    const { base, cover } = splitVal(A.rows[s.dataset.s][Number(s.dataset.d)]);
+    s.value = cover;
+    s.disabled = !base || isOff(base);
+    s.classList.toggle('on', !!cover && !s.disabled);
+  });
+
   const counts = {};
   dept.posts.forEach((p) => { counts[p] = Array(7).fill(0); });
+  const covering = Array(7).fill(0);
   let blanks = 0;
   const hasOff = dept.posts.some(isOff);
   dept.staff.forEach((s) => {
     const row = A.rows[s.id];
-    row.forEach((v, i) => { if (!v) blanks++; else if (counts[v]) counts[v][i]++; });
+    row.forEach((v, i) => {
+      if (!v) { blanks++; return; }
+      const { base, cover } = splitVal(v);
+      if (counts[base]) counts[base][i]++;
+      if (cover) covering[i]++;
+    });
     const flag = $(`tr[data-row="${CSS.escape(s.id)}"] .warn-flag`);
-    if (flag) flag.hidden = !(hasOff && row.every((v) => v && !isOff(v)));
+    if (flag) flag.hidden = !(hasOff && row.every((v) => v && !isOff(splitVal(v).base)));
   });
   $$('tfoot tr[data-post]').forEach((tr) => {
     const c = counts[tr.dataset.post];
     $$('td', tr).forEach((td, i) => { td.textContent = c[i]; td.classList.toggle('zero', c[i] === 0); });
   });
+  $$('tfoot tr[data-covering] td').forEach((td, i) => { td.textContent = covering[i]; td.classList.toggle('zero', covering[i] === 0); });
 
-  // status line
   const pill = $('#statusPill');
   pill.className = 'pill ' + (A.status || 'none');
   pill.textContent = A.status === 'published' ? 'Published' : A.status === 'draft' ? 'Draft (staff cannot see it)' : 'Not saved yet';
@@ -171,13 +224,16 @@ function updateDerived() {
 
 $('#gridArea').addEventListener('change', (ev) => {
   const t = ev.target;
-  const dept = curDept();
   if (t.matches('select.cell')) {
-    A.rows[t.dataset.s][Number(t.dataset.d)] = t.value;
+    const s = t.dataset.s, i = Number(t.dataset.d);
+    const cur = splitVal(A.rows[s][i]);
+    A.rows[s][i] = joinVal(t.value, t.value && !isOff(t.value) ? cur.cover : '');
+  } else if (t.matches('select.cover')) {
+    const s = t.dataset.s, i = Number(t.dataset.d);
+    A.rows[s][i] = joinVal(splitVal(A.rows[s][i]).base, t.value);
   } else if (t.matches('select.fill')) {
     if (!t.value) return;
     A.rows[t.dataset.fill] = Array(7).fill(t.value);
-    $$(`tr[data-row="${CSS.escape(t.dataset.fill)}"] select.cell`).forEach((s) => { s.value = t.value; });
     t.value = '';
   } else return;
   A.dirty = true;
@@ -188,7 +244,7 @@ $('#gridArea').addEventListener('change', (ev) => {
 $('#outlet').addEventListener('change', async (ev) => {
   if (!confirmLeave()) { ev.target.value = A.outlet; return; }
   A.outlet = ev.target.value;
-  A.dept = curOutlet().departments[0].id;
+  A.dept = (curOutlet().departments[0] || {}).id || '';
   fillPickers();
   await safeLoad();
   renderSettings();
@@ -200,7 +256,7 @@ $('#dept').addEventListener('change', async (ev) => {
 });
 async function moveWeek(n) {
   if (!confirmLeave()) return;
-  A.week = n === 0 ? mondayOf(todayStr()) : addDays(A.week, n * 7);
+  A.week = addDays(A.week, n * 7);
   await safeLoad();
 }
 $('#prev').addEventListener('click', () => moveWeek(-1));
@@ -211,10 +267,14 @@ $('#copyLast').addEventListener('click', async () => {
   const dept = curDept();
   const filled = Object.values(A.rows).some((r) => r.some(Boolean));
   if (filled && !confirm('This will replace what is already filled in for this week. Continue?')) return;
+  const valid = (v) => {
+    const { base, cover } = splitVal(v);
+    return dept.posts.includes(base) && (!cover || (coversOf(dept).some((c) => c.code === cover) && !isOff(base)));
+  };
   try {
     const last = await fetchRoster(A.outlet, A.dept, addDays(A.week, -7));
     if (!last) { toast('There is no roster saved for last week.', true); return; }
-    dept.staff.forEach((s) => { A.rows[s.id] = (last.rows[s.id] || Array(7).fill('')).map((v) => (dept.posts.includes(v) ? v : '')); });
+    dept.staff.forEach((s) => { A.rows[s.id] = (last.rows[s.id] || Array(7).fill('')).map((v) => (valid(v) ? v : '')); });
     A.dirty = true;
     renderGrid();
     toast("Copied last week's roster. Change anything that is different, then save.");
@@ -225,7 +285,7 @@ $('#clearAll').addEventListener('click', () => {
   if (!confirm('Clear every cell for this week?')) return;
   A.rows = emptyRows(curDept());
   A.dirty = true;
-  renderGrid();
+  updateDerived();
 });
 $('#print').addEventListener('click', () => window.print());
 
@@ -271,8 +331,22 @@ function staffRowHtml(s) {
 function renderSettings() {
   const outlet = curOutlet();
   const panel = $('#settingsPanel');
-  panel.innerHTML = `<p class="hint" style="margin-top:0">Settings for <b>${esc(outlet.name)}</b>. Renaming a duty post does not change weeks you already saved.</p>` +
-    outlet.departments.map((d) => `
+  let html = `<p class="hint" style="margin-top:0">Settings for <b>${esc(outlet.name)}</b>. Renaming a duty post does not change weeks you already saved.</p>`;
+
+  if (isSuper()) {
+    html += `
+    <div class="card dept-card" data-sup>
+      <h2>${esc(outlet.name)} supervisor login</h2>
+      <label for="suppw">Supervisor password <span class="${outlet.supervisorPasswordSet ? 'status-ok' : 'status-no'}" data-supstatus>${outlet.supervisorPasswordSet ? '(set)' : '(not set yet, supervisors cannot log in)'}</span></label>
+      <div class="pw-row">
+        <input type="text" id="suppw" data-suppw placeholder="Type a new password (6 or more characters)" autocomplete="off" maxlength="64">
+        <button type="button" class="btn small" data-setsup>${outlet.supervisorPasswordSet ? 'Change password' : 'Set password'}</button>
+      </div>
+      <p class="hint">Supervisors choose "${esc(outlet.name)} supervisor" on the Supervisor page and use this password. They can open only ${esc(outlet.name)}.</p>
+    </div>`;
+  }
+
+  html += outlet.departments.map((d) => `
     <div class="card dept-card" data-dept="${esc(d.id)}">
       <h2>${esc(d.name)}</h2>
       <div class="grid2">
@@ -282,9 +356,20 @@ function renderSettings() {
           <button type="button" class="btn secondary small" data-add>+ Add staff</button>
         </div>
         <div>
-          <label for="posts-${esc(d.id)}">Duty posts (one per line)</label>
+          <label for="posts-${esc(d.id)}">Duty posts or shifts (one per line)</label>
           <textarea id="posts-${esc(d.id)}" data-posts>${esc(d.posts.join('\n'))}</textarea>
           <p class="hint">Include an "Off" line if people can be off. Posts named Off or OFF are shown in grey.</p>
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="covers-${esc(d.id)}">Cover places (optional, one per line)</label>
+          <textarea id="covers-${esc(d.id)}" data-covers style="min-height:84px" placeholder="PB = Pool Bar">${esc(coversOf(d).map((c) => `${c.code} = ${c.name}`).join('\n'))}</textarea>
+          <p class="hint">Use this when someone from this department works a shift at another place. Each cell then gets a small "cover…" dropdown.</p>
+        </div>
+        <div>
+          <label for="note-${esc(d.id)}">Note shown to staff (optional)</label>
+          <input type="text" id="note-${esc(d.id)}" data-note maxlength="120" value="${esc(d.note || '')}" placeholder="e.g. M = Morning, N = Night">
         </div>
       </div>
       <div style="margin-top:12px"><button type="button" class="btn small" data-save>Save staff &amp; posts</button></div>
@@ -295,27 +380,68 @@ function renderSettings() {
         <button type="button" class="btn small" data-setpw>${d.hasPassword ? 'Change password' : 'Set password'}</button>
       </div>
       <p class="hint">Everyone in this department uses this one password. Change it any time. Staff who are already logged in stay logged in.</p>
-    </div>`).join('') + `
+    </div>`).join('');
+
+  if (isSuper()) {
+    html += `
+    <div class="card dept-card" data-adddept>
+      <h2 style="font-size:18px">Add a department to ${esc(outlet.name)}</h2>
+      <div class="pw-row">
+        <input type="text" data-newdept maxlength="30" placeholder="e.g. Bar, GSA, Housekeeping" aria-label="New department name">
+        <button type="button" class="btn small" data-adddeptbtn>Add department</button>
+      </div>
+      <p class="hint">It starts with the posts ON and OFF and no staff. Then add staff, posts and a password above.</p>
+    </div>
     <div class="card">
       <h2 style="font:600 18px var(--serif);margin:0 0 4px">Try it with sample data</h2>
-      <p class="hint" style="margin-top:0">Loads the handwritten week of 12–18 Oct as <b>drafts</b> for Vibes Lounge (staff cannot see drafts). Weeks that already have data are never overwritten. A few crossed-out or unclear cells are left empty.</p>
-      <button type="button" class="btn secondary small" id="seed">Load sample week</button>
+      <p class="hint" style="margin-top:0">Loads the handwritten sample weeks (Vibes Lounge 12–18 Oct, Hotel 16–22 Nov) as <b>drafts</b>, so staff cannot see them. Weeks that already have data are never overwritten. A few crossed-out or unclear cells are left empty.</p>
+      <button type="button" class="btn secondary small" id="seed">Load sample weeks</button>
     </div>`;
+  }
+  panel.innerHTML = html;
+}
+
+async function reloadConfig() {
+  A.cfg = await api('config', { token: A.token });
+  fillPickers();
 }
 
 $('#settingsPanel').addEventListener('click', async (ev) => {
   const t = ev.target.closest('button');
   if (!t) return;
-  const card = t.closest('[data-dept]');
+
   if (t.id === 'seed') {
     try {
       const r = await api('seedSample', { method: 'POST', token: A.token });
-      toast(r.added ? `Loaded sample week (${r.added} departments).` : 'Sample week already exists, nothing changed.');
-      A.week = '2026-10-12';
-      if (confirmLeave()) { await safeLoad(); }
+      toast(r.added ? `Loaded ${r.added} sample rosters as drafts.` : 'Sample weeks already exist, nothing changed.');
+      if (SAMPLE_WEEKS[A.outlet] && confirmLeave()) { A.week = SAMPLE_WEEKS[A.outlet]; await safeLoad(); }
     } catch (e) { toast(e.message, true); }
     return;
   }
+  if (t.matches('[data-setsup]')) {
+    const input = $('[data-suppw]');
+    try {
+      await api('setSupervisorPassword', { method: 'POST', token: A.token, body: { outlet: A.outlet, password: input.value } });
+      input.value = '';
+      curOutlet().supervisorPasswordSet = true;
+      const st = $('[data-supstatus]'); st.textContent = '(set)'; st.className = 'status-ok';
+      t.textContent = 'Change password';
+      toast(`${curOutlet().name} supervisor password updated.`);
+    } catch (e) { toast(e.message, true); }
+    return;
+  }
+  if (t.matches('[data-adddeptbtn]')) {
+    const input = $('[data-newdept]');
+    try {
+      await api('addDepartment', { method: 'POST', token: A.token, body: { outlet: A.outlet, name: input.value } });
+      await reloadConfig();
+      renderSettings();
+      toast('Department added. Now add its staff and a password.');
+    } catch (e) { toast(e.message, true); }
+    return;
+  }
+
+  const card = t.closest('[data-dept]');
   if (!card) return;
   const dept = curOutlet().departments.find((d) => d.id === card.dataset.dept);
 
@@ -328,11 +454,12 @@ $('#settingsPanel').addEventListener('click', async (ev) => {
   } else if (t.matches('[data-save]')) {
     const staff = $$('.staff-row', card).map((r) => ({ id: r.dataset.id, name: $('input', r).value })).filter((s) => s.name.trim());
     const posts = $('[data-posts]', card).value.split('\n');
+    const covers = $('[data-covers]', card).value.split('\n');
+    const note = $('[data-note]', card).value;
     if (A.dirty && !confirm('Saving changes here reloads the roster and discards unsaved roster edits. Continue?')) return;
     try {
-      await api('saveConfig', { method: 'POST', token: A.token, body: { outlet: A.outlet, departments: [{ id: dept.id, staff, posts }] } });
-      A.cfg = await api('config', { token: A.token });
-      fillPickers();
+      await api('saveConfig', { method: 'POST', token: A.token, body: { outlet: A.outlet, departments: [{ id: dept.id, staff, posts, covers, note }] } });
+      await reloadConfig();
       A.dirty = false;
       await safeLoad();
       renderSettings();

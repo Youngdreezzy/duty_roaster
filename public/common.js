@@ -39,10 +39,23 @@ function hueFor(post, posts) {
   const i = list.indexOf(post);
   return HUES[(i < 0 ? 0 : i) % HUES.length];
 }
-function chipHtml(value, posts) {
+/* A cell value is a duty post, or "post@CODE" when someone is covering at another place (e.g. "M@PB"). */
+function splitVal(v) {
+  const s = String(v || '');
+  const i = s.indexOf('@');
+  return i < 0 ? { base: s, cover: '' } : { base: s.slice(0, i), cover: s.slice(i + 1) };
+}
+function joinVal(base, cover) { return base ? (cover ? base + '@' + cover : base) : ''; }
+function coverName(code, covers) {
+  const c = (covers || []).find((x) => x.code === code);
+  return c ? c.name : code;
+}
+function chipHtml(value, posts, covers) {
   if (!value) return '<span class="chip empty">–</span>';
-  if (isOff(value)) return `<span class="chip off">${esc(value)}</span>`;
-  return `<span class="chip" style="--h:${hueFor(value, posts)}">${esc(value)}</span>`;
+  const { base, cover } = splitVal(value);
+  if (isOff(base)) return `<span class="chip off">${esc(base)}</span>`;
+  const tag = cover ? `<span class="cv" title="Covering at ${esc(coverName(cover, covers))}">${esc(cover)}</span>` : '';
+  return `<span class="chip" style="--h:${hueFor(base, posts)}">${esc(base)}${tag}</span>`;
 }
 
 /* ---- safe browser storage ---- */

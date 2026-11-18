@@ -29,6 +29,8 @@ async function init() {
   }
   fillSelect($('#outlet'), S.meta.outlets);
   $('#outletField').hidden = S.meta.outlets.length < 2;
+  const wanted = new URLSearchParams(location.search).get('outlet');
+  if (wanted && S.meta.outlets.some((o) => o.id === wanted)) $('#outlet').value = wanted;
   fillDepts();
   $('#outlet').addEventListener('change', fillDepts);
 
@@ -91,6 +93,7 @@ function render() {
   $('#weekLabel').textContent = weekLabel(S.week);
   $('#deptName').textContent = `${outletName} · ${dept.name}`;
   $('#printTitle').textContent = `${outletName} · ${dept.name} · ${weekLabel(S.week)}`;
+  $('#deptNote').textContent = dept.note || '';
   $('#updated').textContent = roster ? `Updated ${stamp(roster.publishedAt || roster.updatedAt)}` : '';
 
   const me = $('#me');
@@ -112,7 +115,7 @@ function renderMyWeek() {
   const today = todayStr();
   $('#myDays').innerHTML = DAYS.map((d, i) => {
     const date = addDays(S.week, i);
-    return `<div class="day${date === today ? ' today' : ''}"><div class="d">${d} ${dayNum(date)}</div>${chipHtml(row[i], dept.posts)}</div>`;
+    return `<div class="day${date === today ? ' today' : ''}"><div class="d">${d} ${dayNum(date)}</div>${chipHtml(row[i], dept.posts, dept.covers)}</div>`;
   }).join('');
 }
 
@@ -130,7 +133,7 @@ function renderTable() {
   }).join('');
   const rows = dept.staff.map((s) => {
     const r = roster.rows[s.id] || [];
-    const cells = DAYS.map((_, i) => `<td class="${addDays(S.week, i) === today ? 'today' : ''}">${chipHtml(r[i], dept.posts)}</td>`).join('');
+    const cells = DAYS.map((_, i) => `<td class="${addDays(S.week, i) === today ? 'today' : ''}">${chipHtml(r[i], dept.posts, dept.covers)}</td>`).join('');
     return `<tr class="${s.id === S.me ? 'me' : ''}"><td class="name">${esc(s.name)}</td>${cells}</tr>`;
   }).join('');
   area.innerHTML = `<div class="table-wrap"><table class="roster"><thead><tr><th class="name">Name</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;

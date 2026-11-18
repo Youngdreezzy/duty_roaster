@@ -1,67 +1,58 @@
-# Duty Roster (Vibes Lounge)
+# Duty Roster (Vibes Lounge + Hotel)
 
 A simple roster system for F&B staff.
 
-- **Supervisor page** (`/admin`): pick department and week, fill the grid with dropdowns, save a draft, then publish.
-- **Staff page** (`/`): staff pick their department, enter the shared department password, and see the published roster. They can pick their name to highlight their own row and see "my week".
-- Built with plain HTML, CSS and JavaScript, a few small serverless API files, and Upstash Redis for storage. Hosted on Vercel.
+- **Staff page** (`/`): staff pick their outlet and department, enter the shared department password, and see the published roster. They can pick their name to highlight their row and see "my week". A link like `/?outlet=hotel` opens with the Hotel already selected.
+- **Supervisor page** (`/admin`): fill the weekly grid with dropdowns, save a draft, then publish.
+- Plain HTML, CSS and JavaScript, a few small serverless API files, Upstash Redis for storage, hosted on Vercel.
 
-Departments set up: **Waitress, Supervisors, Kitchen** (Vibes Lounge). Names and duty posts come from the handwritten sheet and can be corrected inside the app (Settings tab). The Hotel outlet will be added later.
+## Who can do what
 
-## Deploy (about 15 minutes)
+| Login | Where | Can do |
+|---|---|---|
+| **Super admin** (password = `ADMIN_PASSWORD` in Vercel) | Supervisor page > "Super admin" | Everything: all outlets, set each outlet's supervisor password, add departments, load sample data |
+| **Outlet supervisor** (e.g. "Hotel supervisor") | Supervisor page > "Hotel supervisor" | Fill and publish rosters, edit staff names, shifts/posts, cover places and staff passwords **for their own outlet only** |
+| **Staff** | Staff page | View their own department's published roster only |
 
-### 1. Put the project on GitHub
-Create a new GitHub repository and upload this whole folder (do not upload `node_modules`).
+Passwords: each outlet has one supervisor password (set by the super admin), and each department has one shared staff password (set by the super admin or that outlet's supervisor). Hotel and Vibes Lounge passwords are completely separate.
 
-### 2. Create the Upstash Redis database
-1. Sign up at upstash.com (free).
-2. Create a **Redis** database, pick the region closest to you, and choose the free plan.
-3. On the database page, find the **REST API** section and copy `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+## Departments set up
 
-(If you use the Upstash integration from the Vercel Marketplace instead, Vercel adds these for you, as `KV_REST_API_URL` and `KV_REST_API_TOKEN`. The app accepts either pair of names.)
+- **Vibes Lounge:** Waitress, Supervisors, Kitchen
+- **Hotel:** Restaurant, Karaoke Bar, Pool Bar (shifts M, N, OFF; cover places RST, KB, PB, AB)
 
-### 3. Create the Vercel project
-1. Sign up at vercel.com and choose **Add New > Project**, then import your GitHub repository.
-2. Leave the framework as "Other". Before pressing Deploy, open **Environment Variables** and add:
+Names, posts, cover places and shift notes can all be corrected inside the app (Settings tab). The super admin can add more departments there too.
 
-| Name | Value |
-|---|---|
-| `UPSTASH_REDIS_REST_URL` | from Upstash |
-| `UPSTASH_REDIS_REST_TOKEN` | from Upstash |
-| `ADMIN_PASSWORD` | the supervisor password you choose |
-| `SESSION_SECRET` | a long random text, at least 16 characters (smash the keyboard, 40+ characters) |
+## Deploy / update
 
-3. Press **Deploy**. When it finishes, you get a link like `your-project.vercel.app`.
+1. Upload the contents of this folder to your GitHub repository, replacing the old files. The `api` folder must contain **only** `[action].js`. Delete any other file in `api`.
+2. Vercel redeploys automatically. Environment variables needed: `ADMIN_PASSWORD`, `SESSION_SECRET` (16+ random characters), and the Upstash keys (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`). Values must not have quote marks around them.
+3. Open `your-site/api/health`. It should say `"ready": true`.
 
-### 4. First-time setup in the app
-1. Open `your-project.vercel.app/admin` and log in with `ADMIN_PASSWORD`.
-2. Go to **Staff, posts & passwords**. Check the spelling of every name (some handwriting was hard to read) and the duty posts.
-3. Set a **password for each department**. Staff cannot log in to a department until you do.
-4. Optional: press **Load sample week** to fill 12-18 Oct as a draft and try things out.
-5. Go to **Roster**, choose the week, fill it in, and press **Publish to staff**.
-6. Share the main link (`your-project.vercel.app`) with staff, plus their department password.
+## After updating to this version (one time)
+
+1. Open `your-site/admin`, choose **Super admin**, and log in with `ADMIN_PASSWORD`.
+2. Open the **Staff, posts & passwords** tab. For each outlet (switch with the Outlet dropdown on the Roster tab) set the **supervisor password**. Until you do, nobody can log in as that outlet's supervisor.
+3. For the Hotel, set the staff password for Restaurant, Karaoke Bar and Pool Bar, and check every name.
+4. Your existing Vibes Lounge staff, posts, passwords and rosters are kept. The Hotel is added automatically.
 
 ## Day-to-day use (supervisor)
-- Choose the department and week, then pick a duty post in each cell. Use **Fill row...** for someone who works the same post all week.
-- **Copy last week** starts from last week's roster; change only what is different.
-- The table under the grid counts how many people are on each post each day. A name marked "no off day" has no Off all week.
+- Choose the department and week, then pick a shift or duty post in each cell. **Fill row...** fills a whole row.
+- In the Hotel, the small **cover…** dropdown under a cell marks someone covering at another place (shown as `M·PB`). It is switched off for OFF days.
+- **Copy last week** starts from last week's roster. Change only what is different.
+- The table under the grid counts who is on each post per day. A name marked "no off day" has no OFF all week.
 - **Save draft** keeps it private. **Publish to staff** makes it visible. You can edit and publish again at any time.
 - **Print** gives a clean printout for the notice board.
 
 ## Security notes
-- The database token only lives on the server (Vercel). The browser never talks to Redis directly.
-- Department and supervisor passwords are checked on the server. Department passwords are stored hashed.
-- After 10 wrong passwords from the same address, logins are paused for 10 minutes.
-- One department's password cannot open another department's roster.
-- Staff who log in stay logged in on that phone for 30 days. Changing a department password does not log out people who are already in.
+- The database key only lives on the server. The browser never talks to Redis directly.
+- Passwords are checked on the server and stored hashed. After 10 wrong passwords from one address, logins pause for 10 minutes.
+- A supervisor of one outlet cannot read or change another outlet. A department's staff password opens only that department.
 
 ## Run it on your own computer (optional)
 ```
 npm install
-npm run dev     # http://localhost:3000, supervisor password: admin123
+npm run dev     # http://localhost:3000, super admin password: admin123
 npm test        # runs automated checks
 ```
 Without Upstash keys this uses temporary in-memory storage that resets when you stop it.
-
-## Adding the Hotel outlet later
-Send the Hotel sample sheet and the next update will add it. The pages already show an Outlet dropdown as soon as there is more than one outlet, and each outlet keeps its own staff, posts, passwords and rosters.
