@@ -68,6 +68,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .hint { color: var(--muted); font-size: 13.5px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+footer{text-align:center;color:var(--muted);font-size:.9rem;margin-top:28px}
+footer a{color:var(--accent);font-weight:600}
+
 /* ---------- toolbar ---------- */
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 14px; }
 .toolbar .field { min-width: 150px; flex: 1 1 150px; }
